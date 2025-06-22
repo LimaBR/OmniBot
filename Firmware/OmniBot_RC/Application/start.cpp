@@ -54,7 +54,7 @@ void start(){
 	// Init log facility
 	LogDriver::getInstance()->init();
 	TaskHandle_t hTaskLogDriver;
-	xTaskCreate(executableDispatch, "LogDriver", 256, LogDriver::getInstance(), 20, &hTaskLogDriver);
+	xTaskCreate(executableDispatch, "LogDriver", 256, LogDriver::getInstance(), 5, &hTaskLogDriver);
 
 	// Init queues
 	computerPktQueue.init();
