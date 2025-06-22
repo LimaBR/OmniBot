@@ -35,6 +35,7 @@
 extern int __io_putchar(int ch) __attribute__((weak));
 extern int __io_getchar(void) __attribute__((weak));
 
+extern UART_HandleTypeDef huart2;
 
 char *__env[1] = { 0 };
 char **environ = __env;
@@ -80,12 +81,9 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
 __attribute__((weak)) int _write(int file, char *ptr, int len)
 {
   (void)file;
-  int DataIdx;
 
-  for (DataIdx = 0; DataIdx < len; DataIdx++)
-  {
-    __io_putchar(*ptr++);
-  }
+  HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, 10);
+
   return len;
 }
 
