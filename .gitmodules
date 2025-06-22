@@ -1,0 +1,6 @@
+[submodule "Firmware/OmniBot_RC/Application/Shared/RoboFramework_STM32"]
+	path = Firmware/OmniBot_RC/Application/Shared/RoboFramework_STM32
+	url = https://github.com/LimaBR/RoboFramework_STM32
+[submodule "Firmware/OmniBot_RC/Application/Shared/RoboFramework"]
+	path = Firmware/OmniBot_RC/Application/Shared/RoboFramework
+	url = https://github.com/LimaBR/RoboFramework
