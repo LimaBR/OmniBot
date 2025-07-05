@@ -17,6 +17,7 @@
 #include "Queue_STM32.hpp"
 #include "CDC_STM32.hpp"
 #include "MotorPID_STM32.hpp"
+#include "Encoder_STM32.hpp"
 
 #include "Components/ComputerComms_CDC/ComputerComms_CDC.hpp"
 #include "Components/OmniBotController/OmniBotController.hpp"
@@ -27,6 +28,17 @@ GPIO_Pin_STM32 ledGreen(GPIOD, GPIO_PIN_12);
 GPIO_Pin_STM32 ledRed(GPIOD, GPIO_PIN_14);
 GPIO_Pin_STM32 ledBlue(GPIOD, GPIO_PIN_15);
 BinLeds discoveryLeds((GPIO_Pin*[]){&ledOrange, &ledGreen, &ledRed, &ledBlue}, 4);
+
+// Encoders
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim5;
+Encoder_STM32 encoder0(&htim2);
+Encoder_STM32 encoder1(&htim3);
+Encoder_STM32 encoder2(&htim4);
+Encoder_STM32 encoder3(&htim5);
+std::array<Encoder*, 4> encoders = {&encoder0, &encoder1, &encoder2, &encoder3};
 
 // Motors
 MotorPID_STM32::Configuration motorConfig = {
