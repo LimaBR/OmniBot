@@ -16,11 +16,12 @@
 #include "UART_STM32.hpp"
 #include "Queue_STM32.hpp"
 #include "CDC_STM32.hpp"
-#include "MotorPID_STM32.hpp"
 #include "Encoder_STM32.hpp"
-
+#include "SoftTimer_STM32.hpp"
 #include "Components/ComputerComms_CDC/ComputerComms_CDC.hpp"
 #include "Components/OmniBotController/OmniBotController.hpp"
+#include "MotorDC_BTS7960_H_Bridge.hpp"
+#include "RobotCommandPacket.hpp"
 
 // Leds
 GPIO_Pin_STM32 ledOrange(GPIOD, GPIO_PIN_13);
@@ -41,23 +42,40 @@ Encoder_STM32 encoder3(&htim5);
 std::array<Encoder*, 4> encoders = {&encoder0, &encoder1, &encoder2, &encoder3};
 
 // Motors
-MotorPID_STM32::Configuration motorConfig = {
-		.wheelRadius = 40,
-		.reductionRatio = 1/72,
-		.encoderCountsPerRevolution = 52,
-};
-MotorPID_STM32 motor0(motorConfig);
-MotorPID_STM32 motor1(motorConfig);
-MotorPID_STM32 motor2(motorConfig);
-MotorPID_STM32 motor3(motorConfig);
-std::array<MotorPID*, 4> motors = {&motor0, &motor1, &motor2, &motor3};
+extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim8;
+PWM_Pin_STM32 m0_ina(&htim8, TIM_CHANNEL_3);
+PWM_Pin_STM32 m0_inb(&htim8, TIM_CHANNEL_4);
+PWM_Pin_STM32 m1_ina(&htim1, TIM_CHANNEL_1);
+PWM_Pin_STM32 m1_inb(&htim1, TIM_CHANNEL_2);
+PWM_Pin_STM32 m2_ina(&htim1, TIM_CHANNEL_3);
+PWM_Pin_STM32 m2_inb(&htim1, TIM_CHANNEL_4);
+PWM_Pin_STM32 m3_ina(&htim8, TIM_CHANNEL_1);
+PWM_Pin_STM32 m3_inb(&htim8, TIM_CHANNEL_2);
+GPIO_Pin_STM32 m0_inha(M0_LEN_GPIO_Port, M0_LEN_Pin);
+GPIO_Pin_STM32 m0_inhb(M0_REN_GPIO_Port, M0_REN_Pin);
+GPIO_Pin_STM32 m1_inha(M1_LEN_GPIO_Port, M1_LEN_Pin);
+GPIO_Pin_STM32 m1_inhb(M1_REN_GPIO_Port, M1_REN_Pin);
+GPIO_Pin_STM32 m2_inha(M2_LEN_GPIO_Port, M2_LEN_Pin);
+GPIO_Pin_STM32 m2_inhb(M2_REN_GPIO_Port, M2_REN_Pin);
+GPIO_Pin_STM32 m3_inha(M3_LEN_GPIO_Port, M3_LEN_Pin);
+GPIO_Pin_STM32 m3_inhb(M3_REN_GPIO_Port, M3_REN_Pin);
+MotorDC_BTS7960B_H_Bridge dcmotor0(&m0_ina, &m0_inb, &m0_inha, &m0_inhb);
+MotorDC_BTS7960B_H_Bridge dcmotor1(&m1_ina, &m1_inb, &m1_inha, &m1_inhb);
+MotorDC_BTS7960B_H_Bridge dcmotor2(&m2_ina, &m2_inb, &m2_inha, &m2_inhb);
+MotorDC_BTS7960B_H_Bridge dcmotor3(&m3_ina, &m3_inb, &m3_inha, &m3_inhb);
+std::array<MotorDC*, 4> dcmotors = {&dcmotor0, &dcmotor1, &dcmotor2, &dcmotor3};
 
 // Queues
 Queue_STM32<std::vector<uint8_t>, 4> computerPktQueue("computerPktQueue");
+Queue_STM32<RobotCommandPacket, 1> robotPacketQueue("robotPacketQueue");
+
+// Timers
+SoftTimer_STM32 pidTimer(nullptr, "pidTimer");
 
 // Components
 ComputerComms_CDC componentComputerComms(&computerPktQueue, CDC_STM32::getInstance());
-OmniBotController componentOmniBotController(motors);
+OmniBotController componentOmniBotController(dcmotors, encoders, &pidTimer, &robotPacketQueue);
 
 void executableDispatch(void* _executable){
 	Executable* executable = static_cast<Executable*>(_executable);
@@ -68,8 +86,8 @@ void executableDispatch(void* _executable){
 void start(){
 	discoveryLeds.set(1);
 	printf("----------------INIT----------------\n");
-	printf("X and Y: %lu\n", HAL_GetUIDw0());
-	printf("Wafer number: %c\n", (uint8_t)HAL_GetUIDw1());
+	printf("X and Y: %u, %u\n", (uint16_t)HAL_GetUIDw0(), (uint16_t)HAL_GetUIDw0()>>16);
+	printf("Wafer number: %u\n", (uint8_t)HAL_GetUIDw1());
 	printf("Lot number: %c%c%c%c%c%c%c\n",
 			(uint8_t)(HAL_GetUIDw1()>>8),
 			(uint8_t)(HAL_GetUIDw1()>>16),
@@ -88,6 +106,13 @@ void start(){
 
 	// Init queues
 	computerPktQueue.init();
+	robotPacketQueue.init();
+	RobotCommandPacket testPkt = {
+			.tangentSpeed = 0,
+			.normalSpeed = 0,
+			.angularSpeed = 1
+	};
+	robotPacketQueue.send(testPkt, 0);
 
 	// Init shared resources
 	CDC_STM32::getInstance()->init();
@@ -101,7 +126,7 @@ void start(){
 	xTaskCreate(executableDispatch, "ReceiveFromComputer", 256, &componentComputerComms, 20, &hTaskReceiveFromComputer);
 
 	TaskHandle_t hTaskOmniBotController;
-	xTaskCreate(executableDispatch, "OmniBotController", 256, &componentOmniBotController, 20, &hTaskOmniBotController);
+	xTaskCreate(executableDispatch, "OmniBotController", 256, &componentOmniBotController, 21, &hTaskOmniBotController);
 
 	discoveryLeds.set(3);
 	vTaskDelete(nullptr);
